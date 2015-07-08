@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.3/leaflet.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.3/leaflet.js"></script>    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.min.js"></script>    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js"></script>    
+    <title>30x 在哪裡呢？</title>
+    <style type="text/css">
+       html, body {
+         width: 100%;
+         height: 100%;
+         margin: 0;
+       }
+       #map {
+         width: 100%;
+         height: 100%;
+        }
+      #overlap {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 24px;
+        padding: 12px 50px;
+        font-size: 16px;
+        background: rgba(255, 255, 255, 0.8);
+      }
+      #load {
+        font-size: 16px;
+      }
+      #stat {
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map">
+    </div>
+    <div id="overlap">
+      <button id="load">請按我一下</button>
+      <label><input type="radio" name="direction" value="1" checked> 往市區</label>
+      <label><input type="radio" name="direction" value="2"> 往海線</label>
+      <span id="stat"></span>
+    </div>
+    <script type="text/javascript">
+      var yqlUrl = "https://query.yahooapis.com/v1/public/yql?q=SELECT%20BusID%2C%20RouteID%2C%20GoBack%2C%20Longitude%2C%20Latitude%2C%20Azimuth%20FROM%20json%20WHERE%20url%20in%20(%0A%22http%3A%2F%2Fcitybus.taichung.gov.tw%2Fxmlbus3%2FGetBusData.json%3Frouteids%3D300%22%2C%0A%22http%3A%2F%2Fcitybus.taichung.gov.tw%2Fxmlbus3%2FGetBusData.json%3Frouteids%3D301%22%2C%0A%22http%3A%2F%2Fcitybus.taichung.gov.tw%2Fxmlbus3%2FGetBusData.json%3Frouteids%3D302%22%2C%0A%22http%3A%2F%2Fcitybus.taichung.gov.tw%2Fxmlbus3%2FGetBusData.json%3Frouteids%3D303%22%2C%0A%22http%3A%2F%2Fcitybus.taichung.gov.tw%2Fxmlbus3%2FGetBusData.json%3Frouteids%3D304%22%2C%0A%22http%3A%2F%2Fcitybus.taichung.gov.tw%2Fxmlbus3%2FGetBusData.json%3Frouteids%3D305%22%2C%0A%22http%3A%2F%2Fcitybus.taichung.gov.tw%2Fxmlbus3%2FGetBusData.json%3Frouteids%3D3051%22%2C%0A%22http%3A%2F%2Fcitybus.taichung.gov.tw%2Fxmlbus3%2FGetBusData.json%3Frouteids%3D3052%22%2C%0A%22http%3A%2F%2Fcitybus.taichung.gov.tw%2Fxmlbus3%2FGetBusData.json%3Frouteids%3D306%22%2C%0A%22http%3A%2F%2Fcitybus.taichung.gov.tw%2Fxmlbus3%2FGetBusData.json%3Frouteids%3D3061%22%2C%0A%22http%3A%2F%2Fcitybus.taichung.gov.tw%2Fxmlbus3%2FGetBusData.json%3Frouteids%3D3062%22%2C%0A%22http%3A%2F%2Fcitybus.taichung.gov.tw%2Fxmlbus3%2FGetBusData.json%3Frouteids%3D3063%22%2C%0A%22http%3A%2F%2Fcitybus.taichung.gov.tw%2Fxmlbus3%2FGetBusData.json%3Frouteids%3D307%22%2C%0A%22http%3A%2F%2Fcitybus.taichung.gov.tw%2Fxmlbus3%2FGetBusData.json%3Frouteids%3D308%22%0A)%20and%20itemPath%3D%22json.json%22&format=json&jsonCompat=new";
+     
+      function getIcon(entry) {
+        var icon = (entry["direction"] == 1)? "caret-right": "caret-left";
+        var markerColor =  (entry["direction"] == 1)? "darkgreen": "darkpurple";
+        if (entry["RouteID"] == "300") {
+          icon = (entry["direction"] == 1)? "forward": "backward";
+          markerColor = (entry["direction"] == 1)? "green": "purple";
+        }
+        return L.AwesomeMarkers.icon({icon: icon, markerColor: markerColor, prefix: "fa"});  
+      }
+
+      function showData() {
+        d3.selectAll('input[name="direction"]').property('disabled', false);
+        layerGroup.clearLayers();
+        var direction = d3.select('input[name="direction"]:checked').property("value");
+        data.forEach(function(entry) {
+            if (entry["direction"] == direction) {
+            var markerIcon = getIcon(entry);
+            L.marker([parseFloat(entry.Latitude), parseFloat(entry.Longitude)], {icon: markerIcon}).bindPopup(entry["RouteID"] + ' / ' + entry["BusID"]).addTo(layerGroup);
+          }
+        });
+      }
+
+      var map = L.map('map').setView([24.1785, 120.6536], 12);
+      var layerGroup = L.layerGroup([]).addTo(map);
+      var data;
+      L.tileLayer('http://a.tile.thunderforest.com/transport/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap Contributors</a>. Tiles courtesy of <a href="http://www.thunderforest.com/">Andy Allan</a>',
+        maxZoom: 18
+      }).addTo(map);
+      d3.select('#load').on('click', function() {
+        d3.select('#load').property('disabled', true);
+        d3.selectAll('input[name="direction"]').property('disabled', true);
+        d3.json(yqlUrl, function(error, json) {
+          d3.select('#load').property('disabled', false);
+          if (error) {
+            alert("Err!");
+            return;
+          }
+          data = json['query']['results']['json'];
+          data = data.map(function(entry) {
+             if (entry["RouteID"] == "3052" || entry["RouteID"] == "3062") {
+               entry["direction"] = (entry["GoBack"] == "2")? 1: 2;
+             } else {
+               entry["direction"] = (entry["GoBack"] == "1")? 1: 2;
+             }
+             return entry;
+          });
+          var totalBus = data.length;
+          var dataRouteNested = d3.nest().key(function(d) { return d["RouteID"] }).entries(data);
+          var statText = 'Total: ' + totalBus;
+          dataRouteNested.forEach(function(route) {
+            statText += " / " + route.key + ": " + route.values.length;
+          });
+          d3.select('#stat').text(statText);
+          showData();
+        });
+      });
+      d3.selectAll('input[name="direction"]').on('change', showData);
+      d3.selectAll('input[name="direction"]').property('disabled', true);
+    </script>
+  </body>
+</html>
